@@ -11,10 +11,10 @@ require "caw/version"
 
 module Caw
   class Maestro
-    def play(key, secret, token, token_secret)
-      tweets = TwitterStream.new(key, secret, token, token_secret)
+    def play(search)
+      tweets = TwitterStream.new(search)
       until 1 + 1 == 3
-        tweet = tweets.pop!
+        p tweet = tweets.pop!
         tweet.text = enhance_text(tweet.text)
         Mimic.say(tweet)
       end
@@ -33,8 +33,8 @@ module Caw
 
 
   class TwitterStream
-    def initialize(key, secret, token, token_secret)
-      setup_twitter(key, secret, token, token_secret)
+    def initialize(search_term)
+      @search_term = search_term
       @queue = Queue.new
       start!
     end
@@ -45,15 +45,6 @@ module Caw
 
 
     protected
-
-    def setup_twitter(key, secret, token, token_secret)
-      Twitter.configure do |config|
-        config.consumer_key = key
-        config.consumer_secret = secret
-        config.oauth_token = token
-        config.oauth_token_secret = token_secret
-      end
-    end
 
     def start!
       Thread.new do
@@ -77,7 +68,9 @@ module Caw
 
     # Return new tweets last comes first
     def new_tweets
-      tweets = @last_id ? client.home_timeline(:since_id => @last_id) : client.home_timeline
+      q = search.q(@search_term)
+      q = q.since_id(@last_id) if @last_id
+      tweets = q.fetch
       tweets.reverse!
 
       @last_id = tweets.last.id_str if tweets.last
@@ -85,8 +78,8 @@ module Caw
       tweets
     end
 
-    def client
-      @client ||= Twitter::Client.new
+    def search
+      @search ||= Twitter::Search.new
     end
   end # class TwitterStream
 
@@ -103,11 +96,11 @@ module Caw
     VOICES = %w(Bruce Fred Junior Ralph)
 
     def announce(tweet)
-      say(tweet.user.name)
+      say(tweet.from_user)
     end
 
     def mimic(tweet)
-      say(tweet.text, voice_for(tweet.user.name))
+      say(tweet.text, voice_for(tweet.from_user))
     end
 
     protected
